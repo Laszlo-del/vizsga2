@@ -4,77 +4,70 @@ import RPi.GPIO as GPIO
 import random
 
 # --- GPIO beállítások ---
-# GPIO beállítások: BCM számozást használunk (ez a Raspberry Pi pin kiosztása)
+# GPIO beállítások: BCM számozást használunk
 GPIO.setmode(GPIO.BCM)
 
-# --- LED PIN KONFIGURÁCIÓ ---
-# Itt tudod átírni a LED-ek GPIO-pinjeit, ha máshova kötötted őket.
-# Csak a számokat módosítsd!
-RED_LED_PIN = 21  # A piros LED ide van kötve (narancssárga vezeték)
-BLUE_LED_PIN = 20 # A kék LED ide van kötve (fehér vezeték)
-
 # --- LED-ek beállítása ---
-# Ezek a sorok használják a fenti pin konfigurációt
-red_led = PWMLED(RED_LED_PIN)   # Piros LED inicializálása
-blue_led = PWMLED(BLUE_LED_PIN) # Kék LED inicializálása
+# Piros LED (narancssárga vezeték) -> GPIO 21
+# Kék LED (fehér vezeték) -> GPIO 20
+red_led = PWMLED(21)    # Piros LED a GPIO 21-es pin-en
+blue_led = PWMLED(20)   # Kék LED a GPIO 20-as pin-en
 
-# --- Kezdeti hőmérséklet és páratartalom referenciák ---
-# Ezeket használjuk majd az ingadozás alapjául
-# Kezdőértékek, amikre majd ráépül a véletlenszerű mozgás
-current_base_temperature = 23.0 # Kezdeti alap hőmérséklet, sokkal gyakrabban lesz a 20°C felett
-current_base_humidity = 50.0    # Kezdeti alap páratartalom
+# --- Kezdeti értékek beállítása ---
+# Kezdő hőmérséklet alacsonyabb, hogy kék legyen a LED az elején
+current_temperature = 18.0 # Kezdeti hőmérséklet (pl. 18 fok)
+simulated_humidity = 60.0  # Szimulált páratartalom
 
 # --- Fő programciklus ---
-# Ez a rész fut folyamatosan, amíg le nem állítjuk a programot
 try:
+    print("Program indult. Figyeld a LED-ek változását!")
+
+    # Kezdetben 3 ciklusban biztosan kék a LED (vagy amilyen a current_temperature alapján kellene lennie)
+    for i in range(3):
+        # A LED logika itt csak az inicializált current_temperature alapján kapcsol
+        if current_temperature > 20: # 20 fok felett -> PIROS
+            red_led.value = 1
+            blue_led.value = 0
+        else: # 20 fok vagy alatta -> KÉK
+            red_led.value = 0
+            blue_led.value = 1
+
+        print(f"Ciklus {i+1}: Hőmérséklet: {current_temperature:.1f}°C")
+        time.sleep(5) # Vár 5 másodpercet
+
+    # Lassan növeljük a hőmérsékletet, amíg 20 fölé nem emelkedik
     while True:
-        # --- Véletlenszerű ingadozás a referencia érték körül ---
-        # Véletlenszerűen növeljük vagy csökkentjük az "alap" hőmérsékletet és páratartalmat,
-        # de csak kis mértékben, hogy ne legyen feltűnő.
-        temp_change = random.uniform(-0.2, 0.4)  # Hőmérséklet: kicsit nagyobb eséllyel megy fel, mint le
-        humid_change = random.uniform(-0.8, 0.8) # Páratartalom: +/- 0.8 százalék
+        # Növeljük a hőmérsékletet kis lépésekben (pl. +0.3 és +0.7 fok/ciklus)
+        current_temperature += random.uniform(0.3, 0.7)
 
-        current_base_temperature += temp_change
-        current_base_humidity += humid_change
+        # Páratartalmat is kicsit változtatjuk
+        simulated_humidity += random.uniform(-1.0, 1.0)
+        if simulated_humidity < 0: simulated_humidity = 0
+        if simulated_humidity > 100: simulated_humidity = 100
 
-        # Korlátozzuk az értékeket egy reális tartományba
-        # Magasabb tartományban maradunk, hogy a piros LED legyen domináns
-        if current_base_temperature < 18.0: # Alsó határt is megemeltem
-            current_base_temperature = 18.0
-        elif current_base_temperature > 28.0: # Felső határt is megemeltem
-            current_base_temperature = 28.0
+        # --- LED logika: 20 fok FELETT PIROS, ALATT KÉK ---
+        if current_temperature > 20: # Ha a hőmérséklet 20 fok FÖLÖTT van
+            red_led.value = 1   # Piros LED bekapcsol (teljes fényerő)
+            blue_led.value = 0  # Kék LED kikapcsol
+        else: # Ha a hőmérséklet 20 fok vagy ALATTA van
+            red_led.value = 0   # Piros LED kikapcsol
+            blue_led.value = 1  # Kék LED bekapcsol (teljes fényerő)
 
-        # Páratartalom pl. 30% és 80% között
-        if current_base_humidity < 30.0:
-            current_base_humidity = 30.0
-        elif current_base_humidity > 80.0:
-            current_base_humidity = 80.0
+        # DEBUG: Csak akkor írjuk ki az értékeket, ha látni akarjuk a változást
+        print(f"Hőmérséklet: {current_temperature:.1f}°C. Aktív LED: {'Piros' if current_temperature > 20 else 'Kék'}")
 
-        # A "mért" érték, amit megjelenítünk, az alapérték lesz kerekítve
-        measured_temperature = round(current_base_temperature, 1)
-        measured_humidity = round(current_base_humidity, 1)
+        # Ha a hőmérséklet túl magas lett, visszaállítjuk egy alacsonyabb értékre, hogy újra kék legyen
+        if current_temperature > 25.0: # Ha elérte a 25 fokot, visszaállítjuk
+            print("\nHőmérséklet túl magas, visszaállítás egy alacsonyabb értékre.\n")
+            current_temperature = random.uniform(15.0, 19.0) # Visszaáll egy random alacsony értékre
+            time.sleep(3) # Kis szünet az újraindítás előtt
 
-        print(f"Szimulált Hőmérséklet: {measured_temperature}°C")
-        print(f"Szimulált Páratartalom: {measured_humidity}%")
+        time.sleep(5) # Vár 5 másodpercet a következő frissítés előtt
 
-        # --- LED logika a szimulált hőmérséklet alapján ---
-        # Ha a hőmérséklet 20 fok felett piros, alatta kék.
-        if measured_temperature < 20.0:
-            print("LED állapot: KÉK (hőmérséklet < 20°C)")
-            red_led.value = 0   # Piros kikapcsol
-            blue_led.value = 1  # Kék bekapcsol
-        else: # measured_temperature >= 20.0
-            print("LED állapot: PIROS (hőmérséklet >= 20°C)")
-            red_led.value = 1   # Piros bekapcsol
-            blue_led.value = 0  # Kék kikapcsol
-
-        # Várunk 15 másodpercet a következő szimulált mérés előtt
-        time.sleep(15) # EZ A SOR VÁLTOZOTT!
-
-# --- Program leállítása ---
 except KeyboardInterrupt:
-    # Amikor a felhasználó Ctrl+C-vel leállítja a programot
     print("\nProgram leállítva a felhasználó által.")
-    GPIO.cleanup()      # Tisztítja a GPIO pin-eket, hogy ne maradjanak bekapcsolva
-    blue_led.close()    # Bezárja a kék LED objektumot
-    red_led.close()     # Bezárja a piros LED objektumot
+    GPIO.cleanup()
+    blue_led.close()
+    red_led.close()
+
+    
