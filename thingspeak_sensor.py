@@ -10,7 +10,7 @@ red_led = PWMLED(21)   # Piros LED: GPIO 21
 blue_led = PWMLED(20)  # Kék LED: GPIO 20
 
 # --- ThingSpeak beállítás ---
-API_KEY = "6MIPAZKB2XNWH76W"
+API_KEY = "6XC3DGU5D2YYL0PP"
 THINGSPEAK_URL = "https://api.thingspeak.com/update"
 
 # --- Kezdeti értékek ---
